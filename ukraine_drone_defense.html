@@ -309,7 +309,7 @@ function initBatteries() {
     x, y: GROUND_Y,
     ammo: 20,
     reload: 0,
-    emptyReloadTimer: 0 // Track 15s reloading phase
+    emptyReloadTimer: 0 // Track 5s reloading phase
   }));
 }
 
@@ -381,7 +381,7 @@ function launchInterceptor(tx, ty) {
   best.ammo--;
   
   if (best.ammo <= 0) {
-    best.emptyReloadTimer = 15;
+    best.emptyReloadTimer = 5; // Reduced to 5 seconds
   } else {
     best.reload = weaponLevel >= 2 ? 0.15 : 0.3; 
   }
@@ -569,8 +569,7 @@ function update(dt) {
   });
   particles = particles.filter(p => p.life > 0);
 
-  // --- TRAIL CLEANUP FIX ---
-  // Ensure fading trail elements are actually removed when their timer hits 0
+  // Trail cleanup
   enemies.forEach(e => {
     e.trail.forEach(t => t.t -= dt);
     e.trail = e.trail.filter(t => t.t > 0);
@@ -580,10 +579,8 @@ function update(dt) {
     m.trail = m.trail.filter(t => t.t > 0);
   });
 
-  // Now, dead entities are fully removed once their trail has faded
   enemies = enemies.filter(e => e.alive || e.trail.length > 0);
   interceptors = interceptors.filter(m => m.alive || m.trail.length > 0);
-  // -------------------------
 
   if (!waveTransition && totalSpawned >= enemiesToSpawn && enemies.length === 0) {
     waveTransition = true;
@@ -595,8 +592,19 @@ function update(dt) {
       if (b.ammo > 0) b.emptyReloadTimer = 0; 
     });
     
+    // Check if we need to rebuild a destroyed city
+    const destroyedCities = cities.filter(c => !c.alive);
+    let subMessage = 'BRACE FOR IMPACT';
+    let messageColor = '#ff4400';
+    
+    if (destroyedCities.length > 0) {
+      destroyedCities[0].alive = true; // Restore one city
+      subMessage = 'CITY REBUILT. BRACE FOR IMPACT';
+      messageColor = '#00ff88'; // Glow green
+    }
+    
     updateHUD();
-    showAnnounce(`WAVE ${wave} INCOMING`, 'BRACE FOR IMPACT', '#ff4400');
+    showAnnounce(`WAVE ${wave} INCOMING`, subMessage, messageColor);
     setTimeout(() => startWave(), 3000);
   }
 }
@@ -687,7 +695,7 @@ function draw() {
   });
 
   interceptors.forEach(m => {
-    if (!m.alive) return; // Prevent dead missiles from rendering their bodies frozen in place
+    if (!m.alive) return; 
     ctx.save();
     ctx.translate(m.x, m.y);
     if (m.homing) {
@@ -906,7 +914,7 @@ function drawAmmoBar() {
       ctx.font = '9px Share Tech Mono';
       ctx.fillText(`RELOADING ${Math.ceil(b.emptyReloadTimer)}s`, bx, barY + 6);
       
-      const p = 1 - (b.emptyReloadTimer / 15);
+      const p = 1 - (b.emptyReloadTimer / 5); // Updated to 5 seconds
       ctx.fillStyle = '#ff880044';
       ctx.fillRect(bx - 47, barY - 2, 98, 10);
       ctx.fillStyle = '#ff8800';
