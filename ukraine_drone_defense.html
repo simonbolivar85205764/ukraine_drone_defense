@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ukraine Drone Defense</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Share Tech Mono', monospace;
+    color: #00ff88;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  #gameWrapper {
+    position: relative;
+    border: 1px solid #005bbb44;
+    box-shadow: 0 0 40px #005bbb33, inset 0 0 40px #00000066;
+  }
+
+  canvas { display: block; }
+
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 16px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .hud-block {
+    background: rgba(0,0,0,0.7);
+    border: 1px solid #005bbb66;
+    padding: 6px 12px;
+    min-width: 100px;
+  }
+
+  .hud-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: #005bbb;
+    text-transform: uppercase;
+  }
+
+  .hud-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffd700;
+    line-height: 1.1;
+  }
+
+  .hud-center {
+    text-align: center;
+  }
+
+  .hud-center .wave-text {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: #00ff88;
+    letter-spacing: 4px;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  #overlay h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: #ffd700;
+    text-shadow: 0 0 20px #ffd70088;
+    margin-bottom: 6px;
+  }
+
+  #overlay h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    letter-spacing: 8px;
+    color: #005bbb;
+    margin-bottom: 40px;
+  }
+
+  .flag-bar {
+    width: 200px;
+    height: 6px;
+    background: linear-gradient(to right, #005bbb 50%, #ffd700 50%);
+    margin-bottom: 30px;
+    box-shadow: 0 0 15px #ffd70066;
+  }
+
+  #overlay p {
+    color: #aaa;
+    font-size: 13px;
+    letter-spacing: 2px;
+    margin: 4px 0;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  #startBtn, #restartBtn {
+    margin-top: 30px;
+    padding: 14px 40px;
+    font-family: 'Orbitron', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    background: transparent;
+    color: #00ff88;
+    border: 2px solid #00ff88;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  #startBtn:hover, #restartBtn:hover {
+    background: #00ff8822;
+    box-shadow: 0 0 20px #00ff8866;
+    color: #fff;
+  }
+
+  #gameOver {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  #gameOver h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    color: #ff2244;
+    text-shadow: 0 0 30px #ff224488;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+  }
+
+  #gameOver .final-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    color: #ffd700;
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+
+  #gameOver p {
+    color: #666;
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin: 3px 0;
+  }
+
+  #waveAnnounce {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #ff4400;
+    text-shadow: 0 0 20px #ff440088;
+    letter-spacing: 6px;
+    pointer-events: none;
+    z-index: 15;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: center;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="scoreDisplay">0</div>
+    </div>
+    <div class="hud-block hud-center">
+      <div class="hud-label">Weapon</div>
+      <div class="wave-text" id="weaponDisplay" style="font-size: 16px;">MK I</div>
+    </div>
+    <div class="hud-block hud-center">
+      <div class="hud-label">Wave</div>
+      <div class="wave-text" id="waveDisplay">01</div>
+    </div>
+    <div class="hud-block" style="text-align:right">
+      <div class="hud-label">Cities</div>
+      <div class="hud-value" id="citiesDisplay">6</div>
+    </div>
+  </div>
+
+  <div id="waveAnnounce"></div>
+
+  <div id="overlay">
+    <h1>DRONE DEFENSE</h1>
+    <h2>UKRAINE STANDS</h2>
+    <div class="flag-bar"></div>
+    <p>Defend Ukrainian cities from<br>Russian drones &amp; ballistic missiles</p>
+    <p style="margin-top:12px; color:#555">LEFT CLICK — Launch interceptor<br>
+    PROTECT all 6 cities to survive each wave</p>
+    <p style="margin-top:12px; color:#ffd700">🚁 DRONES — slow, weaving<br>🎯 MISSILES — fast, straight</p>
+    <p style="margin-top:12px; color:#00e5ff">⚡ SCORE POINTS TO UNLOCK HOMING DRONES ⚡</p>
+    <button id="startBtn">LAUNCH DEFENSE</button>
+  </div>
+
+  <div id="gameOver">
+    <h1>KYIV FALLS</h1>
+    <div class="final-score" id="finalScore">SCORE: 0</div>
+    <p id="waveReached">WAVE REACHED: 1</p>
+    <p style="margin-top:20px; color:#444">All cities destroyed</p>
+    <button id="restartBtn">DEFEND AGAIN</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const W = 900, H = 620;
+canvas.width = W;
+canvas.height = H;
+document.getElementById('gameWrapper').style.width = W + 'px';
+
+// ─── Game State ───────────────────────────────────────────────────────────────
+let score = 0, wave = 1, cityCount = 6, weaponLevel = 1;
+let gameRunning = false, waveTransition = false;
+let stars = [];
+let cities = [];
+let batteries = [];
+let enemies = [];
+let interceptors = [];
+let explosions = [];
+let particles = [];
+let spawnTimer = 0, spawnInterval = 1.8;
+let enemiesToSpawn = 0, totalSpawned = 0;
+let waveEnemyCount = 10;
+
+const GROUND_Y = H - 60;
+const CITY_POSITIONS = [80, 190, 310, 590, 710, 820];
+const BATTERY_POSITIONS = [W * 0.2, W * 0.5, W * 0.8];
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 180; i++) {
+    stars.push({
+      x: Math.random() * W,
+      y: Math.random() * (H - 120),
+      r: Math.random() * 1.5,
+      twinkle: Math.random() * Math.PI * 2,
+      speed: 0.02 + Math.random() * 0.04
+    });
+  }
+}
+
+function initCities() {
+  cities = CITY_POSITIONS.map(x => ({
+    x, alive: true,
+    buildings: generateCityShape()
+  }));
+}
+
+function generateCityShape() {
+  const shapes = [];
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    shapes.push({
+      dx: (i - n/2) * 14 + Math.random() * 6 - 3,
+      w: 8 + Math.random() * 10,
+      h: 20 + Math.random() * 30
+    });
+  }
+  return shapes;
+}
+
+function initBatteries() {
+  batteries = BATTERY_POSITIONS.map((x, i) => ({
+    x, y: GROUND_Y,
+    ammo: 20,
+    reload: 0,
+    emptyReloadTimer: 0 // Track 15s reloading phase
+  }));
+}
+
+function startWave() {
+  waveTransition = false;
+  enemiesToSpawn = waveEnemyCount;
+  totalSpawned = 0;
+  spawnInterval = Math.max(0.3, 1.8 - wave * 0.2);
+  spawnTimer = 0;
+}
+
+function initGame() {
+  score = 0;
+  wave = 1;
+  weaponLevel = 1;
+  waveEnemyCount = 10;
+  enemies = [];
+  interceptors = [];
+  explosions = [];
+  particles = [];
+  waveTransition = false;
+  initStars();
+  initCities();
+  initBatteries();
+  updateHUD();
+  startWave();
+  gameRunning = true;
+}
+
+// ─── Spawning ─────────────────────────────────────────────────────────────────
+function spawnEnemy() {
+  const x = 40 + Math.random() * (W - 80);
+  const isDrone = Math.random() < (0.6 - wave * 0.04);
+  const speed = isDrone
+    ? 40 + Math.random() * 30 + wave * 5
+    : 80 + Math.random() * 50 + wave * 8;
+
+  const aliveCities = cities.filter(c => c.alive);
+  const allTargets = [...aliveCities, ...batteries];
+  const target = allTargets[Math.floor(Math.random() * allTargets.length)];
+  const tx = target ? target.x : W/2;
+
+  const angle = Math.atan2(GROUND_Y - 0, tx - x);
+
+  enemies.push({
+    x, y: -10,
+    tx, ty: GROUND_Y,
+    vx: Math.cos(angle) * speed,
+    vy: isDrone ? Math.abs(Math.sin(angle)) * speed * 0.6 + 30 : Math.abs(Math.sin(angle)) * speed,
+    speed,
+    isDrone,
+    wobble: isDrone ? (Math.random() - 0.5) * 60 : 0,
+    wobbleT: Math.random() * Math.PI * 2,
+    alive: true,
+    trail: []
+  });
+}
+
+// ─── Intercept ────────────────────────────────────────────────────────────────
+function launchInterceptor(tx, ty) {
+  let best = null, bestDist = Infinity;
+  batteries.forEach(b => {
+    if (b.ammo <= 0 || b.reload > 0 || b.emptyReloadTimer > 0) return;
+    const d = Math.hypot(b.x - tx, b.y - ty);
+    if (d < bestDist) { bestDist = d; best = b; }
+  });
+  if (!best) return;
+
+  best.ammo--;
+  
+  if (best.ammo <= 0) {
+    best.emptyReloadTimer = 15;
+  } else {
+    best.reload = weaponLevel >= 2 ? 0.15 : 0.3; 
+  }
+
+  let speed = weaponLevel >= 2 ? 650 : 400;
+  let homing = false;
+  let target = null;
+
+  if (weaponLevel >= 3) {
+    homing = true;
+    speed = 450;
+    let closestDist = Infinity;
+    enemies.forEach(e => {
+      if(!e.alive) return;
+      let d = Math.hypot(e.x - tx, e.y - ty);
+      if (d < closestDist) { closestDist = d; target = e; }
+    });
+  }
+
+  const dx = tx - best.x, dy = ty - best.y;
+  const dist = Math.hypot(dx, dy);
+
+  interceptors.push({
+    x: best.x, y: best.y,
+    tx, ty,
+    vx: dx / dist * speed,
+    vy: dy / dist * speed,
+    alive: true,
+    homing,
+    target,
+    speed,
+    trail: []
+  });
+}
+
+// ─── Explosion ────────────────────────────────────────────────────────────────
+function createExplosion(x, y, big) {
+  const r = big ? 80 : 50;
+  explosions.push({ x, y, r, maxR: r, t: 0, duration: 0.7 });
+
+  const n = big ? 20 : 12;
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2;
+    const speed = 60 + Math.random() * 80;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.5 + Math.random() * 0.4,
+      maxLife: 0.5 + Math.random() * 0.4,
+      r: 1.5 + Math.random() * 2,
+      color: big ? '#ff4400' : '#ffd700'
+    });
+  }
+}
+
+function createDebris(x, y) {
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 30 + Math.random() * 60;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      life: 0.8 + Math.random() * 0.5,
+      maxLife: 0.8 + Math.random() * 0.5,
+      r: 2 + Math.random() * 3,
+      color: '#ff2244',
+      gravity: true
+    });
+  }
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+let lastTime = 0;
+
+function update(dt) {
+  stars.forEach(s => s.twinkle += s.speed);
+
+  if (!waveTransition) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0 && totalSpawned < enemiesToSpawn) {
+      spawnEnemy();
+      totalSpawned++;
+      spawnTimer = spawnInterval;
+    }
+  }
+
+  batteries.forEach(b => { 
+    if (b.reload > 0) b.reload -= dt; 
+    if (b.emptyReloadTimer > 0) {
+      b.emptyReloadTimer -= dt;
+      if (b.emptyReloadTimer <= 0) {
+        b.ammo = 20; 
+        b.emptyReloadTimer = 0;
+      }
+    }
+  });
+
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    if (e.isDrone) {
+      e.wobbleT += dt * 1.5;
+      e.x += e.vx * dt + Math.sin(e.wobbleT) * e.wobble * dt;
+      e.y += e.vy * dt;
+    } else {
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+    }
+
+    e.trail.push({ x: e.x, y: e.y, t: 0.4 });
+    if (e.trail.length > 20) e.trail.shift();
+
+    if (e.y >= GROUND_Y) {
+      e.alive = false;
+      createExplosion(e.x, GROUND_Y, true);
+      cities.forEach(c => {
+        if (c.alive && Math.abs(c.x - e.x) < 40) {
+          c.alive = false;
+          cityCount = cities.filter(c => c.alive).length;
+          createDebris(c.x, GROUND_Y);
+          updateHUD();
+          if (cityCount <= 0) endGame();
+        }
+      });
+    }
+  });
+
+  interceptors.forEach(m => {
+    if (!m.alive) return;
+
+    if (m.homing && m.target && m.target.alive) {
+      m.tx = m.target.x;
+      m.ty = m.target.y;
+      const dx = m.tx - m.x;
+      const dy = m.ty - m.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0) {
+        m.vx = (dx / dist) * m.speed;
+        m.vy = (dy / dist) * m.speed;
+      }
+    }
+
+    m.x += m.vx * dt;
+    m.y += m.vy * dt;
+
+    m.trail.push({ x: m.x, y: m.y, t: 0.25 });
+    if (m.trail.length > 15) m.trail.shift();
+
+    const dist = Math.hypot(m.tx - m.x, m.ty - m.y);
+    const triggerDist = m.homing ? 15 : 8;
+    
+    if (dist < triggerDist) {
+      m.alive = false;
+      createExplosion(m.x, m.y, weaponLevel >= 2); 
+    }
+  });
+
+  explosions.forEach(exp => {
+    enemies.forEach(e => {
+      if (!e.alive) return;
+      const d = Math.hypot(e.x - exp.x, e.y - exp.y);
+      if (d < exp.r) {
+        e.alive = false;
+        score += e.isDrone ? 100 : 250;
+        checkUpgrades();
+        updateHUD();
+        createDebris(e.x, e.y);
+      }
+    });
+  });
+
+  explosions.forEach(exp => {
+    exp.t += dt;
+    const p = exp.t / exp.duration;
+    exp.r = exp.maxR * (1 - p * 0.3);
+  });
+  explosions = explosions.filter(e => e.t < e.duration);
+
+  particles.forEach(p => {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.gravity) p.vy += 150 * dt;
+    p.life -= dt;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // --- TRAIL CLEANUP FIX ---
+  // Ensure fading trail elements are actually removed when their timer hits 0
+  enemies.forEach(e => {
+    e.trail.forEach(t => t.t -= dt);
+    e.trail = e.trail.filter(t => t.t > 0);
+  });
+  interceptors.forEach(m => {
+    m.trail.forEach(t => t.t -= dt);
+    m.trail = m.trail.filter(t => t.t > 0);
+  });
+
+  // Now, dead entities are fully removed once their trail has faded
+  enemies = enemies.filter(e => e.alive || e.trail.length > 0);
+  interceptors = interceptors.filter(m => m.alive || m.trail.length > 0);
+  // -------------------------
+
+  if (!waveTransition && totalSpawned >= enemiesToSpawn && enemies.length === 0) {
+    waveTransition = true;
+    wave++;
+    waveEnemyCount = wave * 10; 
+    
+    batteries.forEach(b => {
+      b.ammo = Math.min(20, b.ammo + 8);
+      if (b.ammo > 0) b.emptyReloadTimer = 0; 
+    });
+    
+    updateHUD();
+    showAnnounce(`WAVE ${wave} INCOMING`, 'BRACE FOR IMPACT', '#ff4400');
+    setTimeout(() => startWave(), 3000);
+  }
+}
+
+function checkUpgrades() {
+  if (score >= 2500 && weaponLevel < 3) {
+    weaponLevel = 3;
+    showAnnounce("SYSTEM UPGRADE", "HOMING DRONES UNLOCKED", '#00e5ff');
+  } else if (score >= 1000 && weaponLevel < 2) {
+    weaponLevel = 2;
+    showAnnounce("SYSTEM UPGRADE", "HEAVY WARHEADS ONLINE", '#ff8800');
+  }
+}
+
+// ─── Draw ─────────────────────────────────────────────────────────────────────
+function draw() {
+  const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  sky.addColorStop(0, '#000814');
+  sky.addColorStop(0.5, '#001030');
+  sky.addColorStop(1, '#001a50');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, GROUND_Y);
+
+  stars.forEach(s => {
+    const alpha = 0.4 + Math.sin(s.twinkle) * 0.3;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  const horizonGlow = ctx.createLinearGradient(0, GROUND_Y - 80, 0, GROUND_Y);
+  horizonGlow.addColorStop(0, 'rgba(255,68,0,0)');
+  horizonGlow.addColorStop(1, 'rgba(255,68,0,0.15)');
+  ctx.fillStyle = horizonGlow;
+  ctx.fillRect(0, GROUND_Y - 80, W, 80);
+
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.strokeStyle = '#1a3a6a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y);
+  ctx.lineTo(W, GROUND_Y);
+  ctx.stroke();
+
+  ctx.shadowColor = '#005bbb';
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = '#005bbb66';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y);
+  ctx.lineTo(W, GROUND_Y);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  enemies.forEach(e => {
+    e.trail.forEach((pt, i) => {
+      ctx.globalAlpha = (pt.t / 0.4) * 0.5;
+      ctx.fillStyle = e.isDrone ? '#ff6600' : '#ff2244';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+  ctx.globalAlpha = 1;
+
+  interceptors.forEach(m => {
+    m.trail.forEach((pt, i) => {
+      ctx.globalAlpha = pt.t / 0.25 * 0.8;
+      ctx.fillStyle = m.homing ? '#00e5ff' : '#00ff88';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+  ctx.globalAlpha = 1;
+
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (e.isDrone) drawDrone(ctx);
+    else drawMissile(ctx, e.vx, e.vy);
+    ctx.restore();
+  });
+
+  interceptors.forEach(m => {
+    if (!m.alive) return; // Prevent dead missiles from rendering their bodies frozen in place
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    if (m.homing) {
+      ctx.fillStyle = '#00e5ff'; 
+      ctx.shadowColor = '#00e5ff';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(4, 4);
+      ctx.lineTo(-4, 4);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = weaponLevel >= 2 ? '#ff8800' : '#00ff88';
+      ctx.shadowColor = weaponLevel >= 2 ? '#ff8800' : '#00ff88';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, weaponLevel >= 2 ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+
+  explosions.forEach(exp => {
+    const p = exp.t / exp.duration;
+    const alpha = 1 - p;
+
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.arc(exp.x, exp.y, exp.r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = alpha * 0.15;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(exp.x, exp.y, exp.r * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  });
+
+  particles.forEach(p => {
+    const a = p.life / p.maxLife;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  cities.forEach(c => {
+    ctx.save();
+    ctx.translate(c.x, GROUND_Y);
+    if (c.alive) drawCity(ctx, c.buildings);
+    else drawRubble(ctx);
+    ctx.restore();
+  });
+
+  batteries.forEach(b => {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    drawBattery(ctx, b.ammo, b.emptyReloadTimer);
+    ctx.restore();
+  });
+
+  ctx.globalAlpha = 0.03;
+  for (let y = 0; y < H; y += 3) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, y, W, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  drawAmmoBar();
+}
+
+function drawDrone(ctx) {
+  ctx.fillStyle = '#cc3300';
+  ctx.shadowColor = '#ff4400';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-10, -4, 20, 8);
+  ctx.fillRect(-18, -2, 8, 4);
+  ctx.fillRect(10, -2, 8, 4);
+  ctx.strokeStyle = '#ff6644';
+  ctx.lineWidth = 1.5;
+  for (const rx of [-18, 18]) {
+    ctx.beginPath();
+    ctx.arc(rx, 0, 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawMissile(ctx, vx, vy) {
+  const angle = Math.atan2(vy, vx);
+  ctx.rotate(angle - Math.PI / 2);
+  ctx.fillStyle = '#cc0022';
+  ctx.shadowColor = '#ff2244';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, -12);
+  ctx.lineTo(4, 8);
+  ctx.lineTo(-4, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#880011';
+  ctx.beginPath();
+  ctx.moveTo(-4, 4);
+  ctx.lineTo(-10, 12);
+  ctx.lineTo(-4, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, 4);
+  ctx.lineTo(10, 12);
+  ctx.lineTo(4, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,140,0,0.6)';
+  ctx.beginPath();
+  ctx.ellipse(0, 10, 3, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawBattery(ctx, ammo, reloadTimer) {
+  const isEmpty = ammo <= 0;
+  ctx.fillStyle = isEmpty ? '#333' : '#1a5c1a';
+  ctx.shadowColor = isEmpty ? 'transparent' : '#00ff44';
+  ctx.shadowBlur = isEmpty ? 0 : 8;
+  ctx.fillRect(-18, -8, 36, 16);
+  ctx.fillStyle = isEmpty ? '#444' : '#00aa44';
+  ctx.fillRect(-3, -22, 6, 18);
+  ctx.beginPath();
+  ctx.arc(0, -22, 8, Math.PI, 0);
+  ctx.fill();
+  if (!isEmpty) {
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(-1, -26, 2, 8);
+    ctx.fillRect(-4, -22, 8, 2);
+  }
+  ctx.shadowBlur = 0;
+  
+  ctx.fillStyle = isEmpty ? '#ff8800' : '#00ff88';
+  ctx.font = '10px Share Tech Mono';
+  ctx.textAlign = 'center';
+  const displayVal = isEmpty && reloadTimer > 0 ? Math.ceil(reloadTimer) + 's' : ammo;
+  ctx.fillText(displayVal, 0, 14);
+}
+
+function drawCity(ctx, buildings) {
+  ctx.fillStyle = '#1a3a6a';
+  ctx.shadowColor = '#005bbb';
+  ctx.shadowBlur = 6;
+  buildings.forEach(b => {
+    ctx.fillRect(b.dx - b.w/2, -b.h, b.w, b.h);
+    ctx.fillStyle = '#ffd70066';
+    for (let wy = -b.h + 5; wy < -5; wy += 8) {
+      for (let wx = b.dx - b.w/2 + 2; wx < b.dx + b.w/2 - 4; wx += 6) {
+        if (Math.random() < 0.7) {
+          ctx.fillRect(wx, wy, 3, 4);
+        }
+      }
+    }
+    ctx.fillStyle = '#1a3a6a';
+  });
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#005bbb';
+  ctx.fillRect(-2, -buildings[0].h - 18, 12, 6);
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(-2, -buildings[0].h - 12, 12, 6);
+  ctx.fillStyle = '#aaa';
+  ctx.fillRect(-3, -buildings[0].h - 18, 1.5, 18);
+}
+
+function drawRubble(ctx) {
+  ctx.fillStyle = '#333';
+  ctx.shadowBlur = 0;
+  for (let i = -20; i < 20; i += 7) {
+    const h = 5 + Math.random() * 15;
+    ctx.fillRect(i, -h, 5 + Math.random() * 5, h);
+  }
+  ctx.fillStyle = '#551100';
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, Math.PI, 0);
+  ctx.fill();
+}
+
+function drawAmmoBar() {
+  const barY = H - 30;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, barY - 6, W, 36);
+  ctx.strokeStyle = '#005bbb33';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, barY - 6, W, 36);
+
+  batteries.forEach((b, i) => {
+    const bx = b.x;
+    ctx.fillStyle = '#005bbb44';
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#005bbb';
+    ctx.fillText(`BTY ${i+1}`, bx, barY + 18);
+
+    if (b.emptyReloadTimer > 0) {
+      ctx.fillStyle = '#ff8800';
+      ctx.font = '9px Share Tech Mono';
+      ctx.fillText(`RELOADING ${Math.ceil(b.emptyReloadTimer)}s`, bx, barY + 6);
+      
+      const p = 1 - (b.emptyReloadTimer / 15);
+      ctx.fillStyle = '#ff880044';
+      ctx.fillRect(bx - 47, barY - 2, 98, 10);
+      ctx.fillStyle = '#ff8800';
+      ctx.fillRect(bx - 47, barY - 2, 98 * p, 10);
+    } else {
+      for (let j = 0; j < 20; j++) {
+        const px = bx - 47 + j * 5;
+        ctx.fillStyle = j < b.ammo ? '#00ff88' : '#1a2a1a';
+        ctx.fillRect(px, barY - 2, 3, 10);
+      }
+    }
+  });
+}
+
+// ─── HUD ──────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisplay').textContent = score;
+  document.getElementById('waveDisplay').textContent = String(wave).padStart(2, '0');
+  document.getElementById('citiesDisplay').textContent = cities.filter(c => c.alive).length;
+  
+  const wpnNames = ["MK I", "HEAVY", "SEEKER"];
+  const wpnColors = ["#00ff88", "#ff8800", "#00e5ff"];
+  const wpnDisp = document.getElementById('weaponDisplay');
+  wpnDisp.textContent = wpnNames[weaponLevel-1];
+  wpnDisp.style.color = wpnColors[weaponLevel-1];
+}
+
+function showAnnounce(main, sub, color='#ff4400') {
+  const el = document.getElementById('waveAnnounce');
+  el.style.color = color;
+  el.style.textShadow = `0 0 20px ${color}88`;
+  el.innerHTML = `${main}<br><span style="font-size:14px;color:#ffd700;letter-spacing:3px">${sub}</span>`;
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 2500);
+}
+
+// ─── End Game ─────────────────────────────────────────────────────────────────
+function endGame() {
+  gameRunning = false;
+  document.getElementById('finalScore').textContent = `SCORE: ${score}`;
+  document.getElementById('waveReached').textContent = `WAVE REACHED: ${wave}`;
+  document.getElementById('gameOver').style.display = 'flex';
+}
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  if (!gameRunning || waveTransition) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top) * (H / rect.height);
+  launchInterceptor(mx, my);
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('overlay').style.display = 'none';
+  initGame();
+  loop(0);
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  document.getElementById('gameOver').style.display = 'none';
+  initGame();
+  loop(0);
+});
+
+// ─── Game Loop ────────────────────────────────────────────────────────────────
+function loop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  if (gameRunning) {
+    update(dt);
+  }
+
+  draw();
+
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(function startRender(ts) {
+  lastTime = ts;
+  draw();
+  if (!gameRunning) requestAnimationFrame(startRender);
+});
+</script>
+</body>
+</html>
